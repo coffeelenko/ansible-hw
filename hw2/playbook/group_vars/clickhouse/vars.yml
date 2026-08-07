@@ -1,0 +1,7 @@
+---
+clickhouse_version: "26.3.17.110"
+clickhouse_base_url: "https://github.com/ClickHouse/ClickHouse/releases/download/v{{clickhouse_version}}-lts/"
+clickhouse_packages:
+  - clickhouse-common-static
+  - clickhouse-client
+  - clickhouse-server

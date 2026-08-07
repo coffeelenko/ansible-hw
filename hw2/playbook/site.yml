@@ -1,0 +1,144 @@
+---
+- name: Install Clickhouse
+  hosts: clickhouse
+  handlers:
+    - name: Start clickhouse service
+      become: true
+      ansible.builtin.service:
+        name: clickhouse-server
+        state: restarted
+  tasks:
+    - name: Create temp directory for packages
+      become: true
+      ansible.builtin.file:
+        path: /tmp/clickhouse_packages
+        state: directory
+        mode: '0755'
+
+    - name: Download Clickhouse packages (DEB)
+      become: true
+      ansible.builtin.get_url:
+        url: "{{ clickhouse_base_url }}{{ item }}_{{ clickhouse_version }}_amd64.deb"
+        dest: "/tmp/clickhouse_packages/{{ item }}_{{ clickhouse_version }}_amd64.deb"
+        mode: '0644'
+        timeout: 120
+      with_items: "{{ clickhouse_packages }}"
+      register: download_result
+      retries: 3
+      delay: 10
+
+    - name: Debug - Check downloaded files
+      become: true
+      ansible.builtin.shell: "ls -la /tmp/clickhouse_packages/"
+      register: ls_result
+      changed_when: false
+
+    - name: Show downloaded files
+      ansible.builtin.debug:
+        msg: "{{ ls_result.stdout_lines }}"
+
+    - name: Install clickhouse packages
+      become: true
+      ansible.builtin.apt:
+        deb: "/tmp/clickhouse_packages/{{ item }}_{{ clickhouse_version }}_amd64.deb"
+        state: present
+      loop: "{{ clickhouse_packages }}"
+      notify: Start clickhouse service
+
+    - name: Flush handlers
+      ansible.builtin.meta:
+        flush_handlers
+
+    - name: Create database
+      ansible.builtin.command: "clickhouse-client -q 'create database logs;'"
+      register: create_db
+      failed_when: create_db.rc != 0 and create_db.rc != 82
+      changed_when: create_db.rc == 0
+
+- name: Install Vector
+  hosts: vector
+  become: true
+  vars:
+    vector_version: "0.57.0"
+    vector_archive_name: "vector-{{ vector_version }}-x86_64-unknown-linux-gnu"
+    vector_install_dir: "/opt/vector"
+  tasks:
+    - name: Create Vector directories
+      become: true
+      ansible.builtin.file:
+        path: "{{ vector_install_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Download Vector package
+      become: true
+      ansible.builtin.get_url:
+        url: "https://packages.timber.io/vector/{{ vector_version }}/{{ vector_archive_name }}.tar.gz"
+        dest: "/tmp/{{ vector_archive_name }}.tar.gz"
+        mode: '0644'
+        timeout: 30
+
+    - name: Extract Vector archive
+      become: true
+      ansible.builtin.unarchive:
+        src: "/tmp/{{ vector_archive_name }}.tar.gz"
+        dest: "{{ vector_install_dir }}"
+        remote_src: true
+        extra_opts: [--strip-components=1]
+        creates: "{{ vector_install_dir }}/{{ vector_archive_name }}/bin/vector"
+
+    - name: Install Vector binary (copy to PATH)
+      become: true
+      ansible.builtin.copy:
+        src: "{{ vector_install_dir }}/vector-x86_64-unknown-linux-gnu/bin/vector"
+        dest: "/usr/local/bin/vector"
+        mode: '0755'
+        remote_src: true
+
+    - name: Verify Vector installation
+      become: true
+      ansible.builtin.command: "/usr/local/bin/vector --version"
+      register: vector_version_check
+      changed_when: false
+
+    - name: Show Vector version
+      ansible.builtin.debug:
+        msg: "{{ vector_version_check.stdout }}"
+
+    - name: Create Vector config directory
+      become: true
+      ansible.builtin.file:
+        path: /etc/vector
+        state: directory
+        mode: '0755'
+
+    - name: Deploy Vector configuration
+      become: true
+      ansible.builtin.template:
+        src: ./vector.yaml.j2
+        dest: /etc/vector/vector.yaml
+        mode: '0644'
+      notify: Restart vector service
+
+    - name: Create Vector systemd service
+      become: true
+      ansible.builtin.template:
+        src: ./vector.service.j2  # Вам нужно создать этот файл
+        dest: /etc/systemd/system/vector.service
+        mode: '0644'
+      notify: Restart vector service
+
+    - name: Ensure Vector service is running
+      become: true
+      ansible.builtin.service:
+        name: vector
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Restart vector service
+      become: true
+      ansible.builtin.service:
+        name: vector
+        state: restarted
+        daemon_reload: true

@@ -1,0 +1,13 @@
+sources:
+  demo_logs:
+    type: demo_logs
+    format: json
+    count: 10
+
+sinks:
+  stdout:
+    type: console
+    inputs: [demo_logs]
+    target: stdout
+    encoding:
+      codec: json
