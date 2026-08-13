@@ -11,7 +11,7 @@
   roles:
     - vector
 
-- name: Install and configure LightHouse
+- name: Install LightHouse
   hosts: lighthouse
   become: true
   roles:
