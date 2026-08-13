@@ -1,0 +1,17 @@
+---
+# Версии
+clickhouse_version: "26.3.17.110"
+clickhouse_base_url: "https://github.com/ClickHouse/ClickHouse/releases/download/v{{clickhouse_version}}-lts/"
+
+# Vector
+vector_version: "0.57.0"
+vector_archive_name: "vector-{{ vector_version }}-x86_64-unknown-linux-gnu"
+vector_base_url: "https://packages.timber.io/vector/{{ vector_version }}/{{ vector_archive_name }}.tar.gz"
+
+# Lighthouse
+lighthouse_repo_url: "https://github.com/VKCOM/lighthouse/archive/refs/heads/master.zip"
+
+# Порты
+clickhouse_http_port: 8123
+clickhouse_tcp_port: 9000
+nginx_port: 80

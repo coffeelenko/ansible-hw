@@ -1,0 +1,19 @@
+---
+all:
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: ~/.ssh/terraform_key
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  children:
+    clickhouse:
+      hosts:
+        clickhouse-01:
+          ansible_host: 51.250.66.50
+    vector:
+      hosts:
+        vector-01:
+          ansible_host: 51.250.87.123
+    lighthouse:
+      hosts:
+        lighthouse-01:
+          ansible_host: 51.250.64.58

@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<yandex>
+    <listen_host>0.0.0.0</listen_host>
+    <http_port>{{ clickhouse_http_port | default(8123) }}</http_port>
+    <tcp_port>{{ clickhouse_tcp_port | default(9000) }}</tcp_port>
+    <users>
+        <default>
+            <password></password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+        </default>
+    </users>
+</yandex>

@@ -1,0 +1,92 @@
+---
+- name: Install Clickhouse
+  block:
+    - name: Create temp directory for packages
+      ansible.builtin.file:
+        path: /tmp/clickhouse_packages
+        state: directory
+        mode: '0755'
+      register: clickhouse_temp_dir
+
+    - name: Download Clickhouse packages
+      ansible.builtin.get_url:
+        url: "{{ clickhouse_base_url }}{{ item }}_{{ clickhouse_version }}_amd64.deb"
+        dest: "/tmp/clickhouse_packages/{{ item }}_{{ clickhouse_version }}_amd64.deb"
+        mode: '0755'
+        timeout: 120
+      loop: "{{ clickhouse_packages }}"
+      retries: 5
+      delay: 10
+      when: clickhouse_temp_dir is success
+
+    - name: Install clickhouse packages
+      ansible.builtin.apt:
+        deb: "/tmp/clickhouse_packages/{{ item }}_{{ clickhouse_version }}_amd64.deb"
+        state: present
+      loop: "{{ clickhouse_packages }}"
+
+    - name: Create Clickhouse config directory
+      ansible.builtin.file:
+        path: /etc/clickhouse-server/config.d
+        state: directory
+        mode: '0755'
+
+    - name: Deploy Clickhouse network configuration
+      ansible.builtin.template:
+        src: clickhouse-config.j2
+        dest: /etc/clickhouse-server/config.d/network.xml
+        mode: '0644'
+
+    - name: Start Clickhouse service
+      ansible.builtin.service:
+        name: clickhouse-server
+        state: started
+        enabled: true
+
+    - name: Flush handlers to restart Clickhouse
+      ansible.builtin.meta: flush_handlers
+
+      # пока clickhouse поднимется
+    - name: Wait for Clickhouse HTTP port
+      ansible.builtin.wait_for:
+        port: 8123
+        host: "{{ ansible_default_ipv4.address }}"
+        delay: 10
+        timeout: 60
+
+    - name: Wait for Clickhouse TCP port
+      ansible.builtin.wait_for:
+        port: 9000
+        host: "{{ ansible_default_ipv4.address }}"
+        delay: 5
+        timeout: 30
+
+      # проверяем что clickhouse отвечает
+    - name: Check Clickhouse is ready
+      ansible.builtin.command: "clickhouse-client -q 'SELECT 1'"
+      register: clickhouse_ready
+      changed_when: false
+      retries: 5
+      delay: 5
+      until: clickhouse_ready.rc == 0
+
+    - name: Create database
+      ansible.builtin.command: "clickhouse-client -q 'create database if not exists logs;'"
+      register: clickhouse_create_db
+      changed_when: clickhouse_create_db.rc == 0
+      failed_when: clickhouse_create_db.rc != 0 and clickhouse_create_db.rc != 82
+
+    - name: Create vector_logs table
+      ansible.builtin.command: |
+        clickhouse-client -q "
+        CREATE TABLE IF NOT EXISTS logs.vector_logs (
+            timestamp DateTime,
+            message String,
+            host String,
+            source String
+        ) ENGINE = MergeTree()
+        ORDER BY timestamp
+        "
+      register: create_table
+      changed_when: create_table.rc == 0
+      failed_when: create_table.rc != 0 and 'already exists' not in create_table.stderr

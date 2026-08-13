@@ -1,0 +1,4 @@
+---
+lighthouse_install_dir: "/opt/lighthouse"
+lighthouse_archive_name: "lighthouse-master"
+lighthouse_nginx_conf_dir: "/etc/nginx/conf.d"

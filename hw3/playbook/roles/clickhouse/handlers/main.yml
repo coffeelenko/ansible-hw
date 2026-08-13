@@ -1,0 +1,15 @@
+---
+- name: Start clickhouse service
+  become: true
+  ansible.builtin.service:
+    name: clickhouse-server
+    state: restarted
+    daemon_reload: true
+
+- name: Wait for clickhouse after restart
+  become: true
+  ansible.builtin.wait_for:
+    port: 8123
+    host: "{{ ansible_default_ipv4.address }}"
+    delay: 10
+    timeout: 60

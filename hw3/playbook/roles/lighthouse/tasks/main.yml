@@ -1,0 +1,61 @@
+---
+- name: Install and configure LightHouse
+  block:
+    - name: Install Nginx and unzip
+      ansible.builtin.apt:
+        name:
+          - nginx
+          - unzip
+        state: present
+        update_cache: true
+      notify: Restart nginx
+      when: ansible_os_family == "Debian"
+
+    - name: Create LightHouse directory
+      ansible.builtin.file:
+        path: "{{ lighthouse_install_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Download LightHouse archive
+      ansible.builtin.get_url:
+        url: "{{ lighthouse_repo_url }}"
+        dest: "/tmp/{{ lighthouse_archive_name }}.zip"
+        mode: '0644'
+        timeout: 30
+
+#    - name: Extract LightHouse archive
+#      ansible.builtin.unarchive:
+#        src: "/tmp/{{ lighthouse_archive_name }}.zip"
+#        dest: "{{ lighthouse_install_dir }}"
+#        remote_src: true
+#        extra_opts: [--strip-components=1]
+#        creates: "{{ lighthouse_install_dir }}/index.html"
+
+    - name: Extract LightHouse archive
+      ansible.builtin.shell:
+        cmd: |
+          unzip -q -o /tmp/{{ lighthouse_archive_name }}.zip -d /tmp/lighthouse_temp/
+          cp -r /tmp/lighthouse_temp/lighthouse-master/* {{ lighthouse_install_dir }}/
+          rm -rf /tmp/lighthouse_temp
+        creates: "{{ lighthouse_install_dir }}/index.html"
+
+    - name: Create Nginx configuration for LightHouse
+      ansible.builtin.template:
+        src: lighthouse.conf.j2
+        dest: "{{ lighthouse_nginx_conf_dir }}/lighthouse.conf"
+        mode: '0644'
+      notify: Restart nginx
+
+    - name: Remove default Nginx config
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Restart nginx
+      when: ansible_os_family == "Debian"
+
+    - name: Ensure Nginx is running and enabled
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true

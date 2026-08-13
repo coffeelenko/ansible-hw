@@ -1,0 +1,16 @@
+server {
+    listen {{ nginx_port | default(80) }};
+    server_name _;
+
+    root {{ lighthouse_install_dir }};
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
